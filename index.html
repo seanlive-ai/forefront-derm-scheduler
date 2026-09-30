@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Forefront Dermatology — OKC Scheduling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --teal-900:#0e3f3b;
+    --teal-700:#155e57;
+    --teal-600:#1c7a71;
+    --teal-500:#2c9187;
+    --teal-300:#8ecac2;
+    --teal-100:#dbf0ec;
+    --mist:#f3f9f8;
+    --paper:#fdfefe;
+    --ink:#152423;
+    --ink-soft:#4a5b59;
+    --line:#d7e6e3;
+    --amber:#b3781c;
+    --amber-bg:#fbf1e0;
+    --coral:#b3452f;
+    --coral-bg:#fbe9e5;
+    --radius:3px;
+    --font-display:'Fraunces', serif;
+    --font-body:'Inter', sans-serif;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  :root:not([data-theme="light"]){
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#eaf3f1; --ink-soft:#a9bfbb; --paper:#0f1a18; --mist:#132623;
+      --line:#25423d; --teal-100:#173430; --amber-bg:#2a2013; --coral-bg:#2b1a16;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#eaf3f1; --ink-soft:#a9bfbb; --paper:#0f1a18; --mist:#132623;
+    --line:#25423d; --teal-100:#173430; --amber-bg:#2a2013; --coral-bg:#2b1a16;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:var(--font-body); font-size:14px; line-height:1.5;
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:var(--teal-300); color:var(--teal-900);}
+  button, select, input{font-family:inherit; font-size:inherit; color:inherit;}
+  button{cursor:pointer;}
+  a{color:var(--teal-700);}
+
+  .app{ min-height:100%; display:flex; flex-direction:column;}
+
+  header.top{
+    background:var(--teal-900); color:#f2fbf9;
+    padding:16px 20px calc(16px + env(safe-area-inset-top,0px));
+    padding-top:calc(16px + env(safe-area-inset-top,0px));
+    display:flex; align-items:center; gap:14px;
+    border-bottom:1px solid var(--teal-700);
+  }
+  .mark{ width:34px; height:34px; flex:none; }
+  header.top h1{
+    font-family:var(--font-display); font-weight:500; font-size:19px; margin:0;
+    letter-spacing:.2px;
+  }
+  header.top p{ margin:2px 0 0; font-size:12px; color:var(--teal-300); }
+  .headtext{flex:1; min-width:0;}
+
+  nav.tabs{
+    display:flex; overflow-x:auto; gap:2px; background:var(--mist);
+    border-bottom:1px solid var(--line); padding:0 8px;
+    -webkit-overflow-scrolling:touch;
+  }
+  nav.tabs button{
+    background:none; border:none; padding:12px 14px; font-size:13px; font-weight:600;
+    color:var(--ink-soft); white-space:nowrap; border-bottom:2px solid transparent;
+    transition:color .15s, border-color .15s;
+  }
+  nav.tabs button.active{ color:var(--teal-700); border-bottom-color:var(--teal-600); }
+  nav.tabs button:hover{ color:var(--teal-700); }
+
+  main{ flex:1; padding:18px 16px 48px; max-width:920px; width:100%; margin:0 auto; }
+
+  h2.section-title{
+    font-family:var(--font-display); font-weight:500; font-size:22px; margin:0 0 4px;
+    color:var(--teal-900);
+  }
+  p.section-sub{ margin:0 0 18px; color:var(--ink-soft); font-size:13px; max-width:60ch;}
+
+  .panel{
+    border:1px solid var(--line); border-radius:var(--radius); background:var(--paper);
+    padding:16px; margin-bottom:14px;
+  }
+  .panel + .panel{ margin-top:14px; }
+
+  .provider-card{
+    border:1px solid var(--line); border-left:4px solid var(--card-color, var(--teal-500));
+    border-radius:var(--radius); padding:14px 16px; margin-bottom:12px; background:var(--paper);
+  }
+  .provider-card .row-top{ display:flex; justify-content:space-between; align-items:baseline; gap:10px; flex-wrap:wrap;}
+  .provider-card h3{ margin:0; font-size:16px; font-weight:600;}
+  .role-tag{ font-size:11px; color:var(--ink-soft); border:1px solid var(--line); padding:1px 7px; border-radius:10px;}
+
+  .field-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(130px,1fr)); gap:8px 12px; margin-top:10px;}
+  .field{ display:flex; flex-direction:column; gap:3px;}
+  .field label{ font-size:11px; color:var(--ink-soft); }
+  .field select, .field input[type=text], .field input[type=number], .field input[type=time], .field input[type=date]{
+    border:1px solid var(--line); border-radius:var(--radius); padding:6px 7px; background:var(--paper); color:var(--ink);
+    min-width:0;
+  }
+  .day-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:6px; margin-top:10px;}
+  .day-grid .field label{ font-weight:600; text-align:center;}
+  .day-grid select{ width:100%; text-align:center;}
+
+  .day-section{ margin-bottom:16px; }
+  .day-section-head{
+    font-family:var(--font-display); font-size:16px; font-weight:500; color:var(--teal-900);
+    padding-bottom:6px; margin-bottom:8px; border-bottom:2px solid var(--teal-100);
+  }
+  .block-grid{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .block-card{ border:1px solid var(--line); border-radius:var(--radius); padding:10px 12px; background:var(--paper); border-top:3px solid var(--line); }
+  .block-card.block-clinic{ border-top-color:var(--teal-500); background:var(--teal-100); }
+  .block-card.block-surgery{ border-top-color:var(--coral); background:var(--coral-bg); }
+  .block-card.block-off{ opacity:.55; }
+  .one-line-row{ display:flex; gap:8px; margin-top:8px; padding-top:8px; border-top:1px dashed var(--line); }
+  .one-line-row .field{ flex:1; min-width:0; }
+  .block-head{ flex-wrap:wrap; }
+  .block-type-tag{ white-space:nowrap; }
+  .block-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+  .block-type-tag{ font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.03em; padding:2px 7px; border-radius:9px; }
+  .block-type-tag.clin{ background:var(--teal-500); color:#fff; }
+  .block-type-tag.surg{ background:var(--coral); color:#fff; }
+  @media (max-width:520px){ .block-grid{ grid-template-columns:1fr; } }
+
+  .inline-btn{
+    background:none; border:1px solid var(--line); border-radius:var(--radius);
+    padding:5px 10px; font-size:12px; font-weight:600; color:var(--teal-700);
+  }
+  .inline-btn:hover{ background:var(--teal-100); }
+  .inline-btn.danger{ color:var(--coral); }
+  .inline-btn.danger:hover{ background:var(--coral-bg); }
+  .primary-btn{
+    background:var(--teal-600); color:#fff; border:none; border-radius:var(--radius);
+    padding:9px 16px; font-size:13px; font-weight:600;
+  }
+  .primary-btn:hover{ background:var(--teal-700); }
+  .primary-btn:disabled{ opacity:.5; cursor:default; }
+
+  .toggle-chip{
+    display:inline-flex; align-items:center; gap:5px; border:1px solid var(--line);
+    border-radius:12px; padding:3px 10px 3px 6px; font-size:12px; cursor:pointer; user-select:none;
+  }
+  .toggle-chip input{ accent-color:var(--teal-600); }
+  .toggle-chip.on{ border-color:var(--teal-500); background:var(--teal-100); }
+
+  .add-row{ display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+  .add-row input[type=text]{ flex:1; min-width:140px; border:1px solid var(--line); border-radius:var(--radius); padding:8px 9px; background:var(--paper); color:var(--ink);}
+
+  table.week-table{ width:100%; border-collapse:collapse; font-size:13px;}
+  table.week-table th{ text-align:left; font-size:11px; color:var(--ink-soft); padding:6px 8px; border-bottom:1px solid var(--line);}
+  table.week-table td{ vertical-align:top; padding:8px; border-bottom:1px solid var(--line);}
+  .day-col-head{ font-family:var(--font-display); font-size:16px; color:var(--teal-900); font-weight:500;}
+  .day-col-head small{ display:block; font-family:var(--font-body); font-size:11px; color:var(--ink-soft); font-weight:400;}
+
+  .slot{ border:1px solid var(--line); border-left:3px solid var(--slot-color,var(--teal-500)); border-radius:var(--radius); padding:8px 9px; margin-bottom:8px;}
+  .slot .slot-head{ display:flex; justify-content:space-between; align-items:baseline; gap:6px;}
+  .slot .slot-head strong{ font-size:13px;}
+  .slot .loc{ font-size:11px; color:var(--ink-soft);}
+  .badge-row{ display:flex; flex-wrap:wrap; gap:5px; margin-top:6px;}
+  .ma-badge{ display:inline-flex; align-items:center; gap:5px; background:var(--teal-100); color:var(--teal-900); border-radius:11px; padding:3px 8px 3px 9px; font-size:12px;}
+  .ma-badge.surg::after{ content:"✂"; font-size:10px; opacity:.65;}
+  .ma-badge button{ background:none; border:none; color:var(--teal-900); font-size:13px; line-height:1; padding:0; opacity:.6;}
+  .ma-badge button:hover{ opacity:1;}
+  .warn-tag{ display:inline-block; margin-top:6px; font-size:11px; padding:2px 7px; border-radius:10px; background:var(--amber-bg); color:var(--amber); font-weight:600;}
+  .warn-tag.bad{ background:var(--coral-bg); color:var(--coral);}
+  .add-ma-select{ margin-top:6px; width:100%; border:1px solid var(--line); border-radius:var(--radius); padding:5px 6px; background:var(--paper); color:var(--ink); font-size:12px;}
+
+  .week-nav{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;}
+  .week-nav .rng{ font-weight:600; font-size:14px; font-family:var(--font-display); color:var(--teal-900);}
+  .icon-btn{ background:none; border:1px solid var(--line); border-radius:50%; width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; font-size:15px; color:var(--teal-700);}
+  .icon-btn:hover{ background:var(--teal-100);}
+
+  .month{ margin-bottom:22px;}
+  .month h3{ font-family:var(--font-display); font-weight:500; font-size:16px; color:var(--teal-900); margin:0 0 8px;}
+  .month-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:3px;}
+  .month-grid .dow{ font-size:10px; text-align:center; color:var(--ink-soft); padding-bottom:3px;}
+  .day-cell{ min-height:46px; border:1px solid var(--line); border-radius:2px; padding:3px 4px; font-size:10px; background:var(--paper); cursor:pointer;}
+  .day-cell.empty{ border-color:transparent; cursor:default;}
+  .day-cell:hover:not(.empty){ background:var(--teal-100);}
+  .day-cell .dn{ font-size:10px; color:var(--ink-soft); font-weight:600;}
+  .day-cell .dots{ display:flex; flex-wrap:wrap; gap:2px; margin-top:2px;}
+  .dot{ width:14px; height:12px; border-radius:2px; font-size:8px; color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700;}
+
+  .empty-state{ border:1px dashed var(--line); border-radius:var(--radius); padding:24px 18px; text-align:center; color:var(--ink-soft); font-size:13px;}
+
+  .helptext{ font-size:12px; color:var(--ink-soft); margin-top:4px;}
+  .legend{ display:flex; gap:14px; flex-wrap:wrap; margin:10px 0 4px; font-size:11px; color:var(--ink-soft);}
+  .legend span{ display:inline-flex; align-items:center; gap:5px;}
+  .legend i{ width:10px; height:10px; border-radius:2px; display:inline-block;}
+
+  .save-status{ position:fixed; right:14px; bottom:calc(14px + env(safe-area-inset-bottom,0px)); font-size:11px; color:var(--ink-soft); background:var(--paper); border:1px solid var(--line); padding:5px 10px; border-radius:12px; opacity:0; transition:opacity .3s;}
+  .save-status.show{ opacity:1;}
+
+  @media (max-width:640px){
+    .field-grid{ grid-template-columns:repeat(2,1fr);}
+    .day-grid{ grid-template-columns:repeat(5,1fr); font-size:11px;}
+    table.week-table, table.week-table thead{ display:none; }
+    table.week-table tr{ display:block; }
+    table.week-table td{ display:block; border:none; padding:0; }
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <svg class="mark" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path d="M14 6 L26 6 L26 11 L19 11 L19 18 L25 18 L25 23 L19 23 L19 34 C19 34 12 32 12 24 C12 19 15 18 15 18 C15 18 8 16 8 9 C8 6.5 10.7 6 14 6 Z"
+        fill="none" stroke="#f2fbf9" stroke-width="1.6"/>
+      <path d="M14 6 L26 6 L26 11 L19 11 L19 18 L25 18 L25 23 L19 23 L19 34 C19 34 12 32 12 24 C12 19 15 18 15 18 C15 18 8 16 8 9 C8 6.5 10.7 6 14 6 Z"
+        fill="#2c9187" opacity="0.55"/>
+    </svg>
+    <div class="headtext">
+      <h1>Forefront Dermatology</h1>
+      <p>North &amp; South Clinics — Oklahoma City · Staff Scheduling</p>
+    </div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+  <div class="save-status" id="saveStatus">Saved</div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ---------------- constants ---------------- */
+var DAYS = ["Mon","Tue","Wed","Thu","Fri"];
+var DAY_FULL = {Mon:"Monday",Tue:"Tuesday",Wed:"Wednesday",Thu:"Thursday",Fri:"Friday"};
+var LOCATIONS = ["North","South"];
+var ROLES = ["Physician","Physician Assistant","Mohs Surgeon"];
+var PALETTE = ["#1c7a71","#8a5a2b","#5a5aa8","#a83d5a","#4a8a3d","#a86a1c","#2c6b8f","#7a6a1c"];
+var MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+function uid(prefix){ return prefix + "_" + Math.random().toString(36).slice(2,9); }
+function esc(s){ return (s||"").replace(/[&<>\"']/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]; }); }
+function parseSkills(s){ return (s||"").split(",").map(function(x){return x.trim().toLowerCase();}).filter(Boolean); }
+
+/* ---------------- blank seed state ---------------- */
+function seedState(){
+  return { providers: [], assistants: [], timeOff: [], weeks: {} };
+}
+function blankDay(){ return { blocks: { AM: blankBlock(), PM: blankBlock() } }; }
+function blankBlock(){ return { active:false, type:"Clinic", location:"North", start:"08:00", end:"12:00", need:0, skillTag:"surgery", skillMin:0 }; }
+function blankAvailDay(){ return { on:true, start:"08:00", end:"17:00" }; }
+var BLOCKS = ["AM","PM"];
+var BLOCK_LABEL = {AM:"Morning", PM:"Afternoon"};
+
+/* ---------------- app state ---------------- */
+var state = null;
+var db = null;
+var currentTab = "providers";
+var currentWeekStart = mondayOf(new Date());
+var currentYear = new Date().getFullYear();
+var saveTimer = null;
+var dirty = false;
+
+function mondayOf(d){
+  var dt = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var day = dt.getDay();
+  var diff = (day===0? -6 : 1-day);
+  dt.setDate(dt.getDate()+diff);
+  return fmtDate(dt);
+}
+function fmtDate(dt){
+  var y=dt.getFullYear(), m=(""+(dt.getMonth()+1)).padStart(2,"0"), d=(""+dt.getDate()).padStart(2,"0");
+  return y+"-"+m+"-"+d;
+}
+function parseDate(s){ var p=s.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]); }
+function addDays(dateStr, n){ var dt = parseDate(dateStr); dt.setDate(dt.getDate()+n); return fmtDate(dt); }
+function weekLabel(mondayStr){
+  var start=parseDate(mondayStr), end=parseDate(addDays(mondayStr,4));
+  var startS = start.toLocaleDateString("en-US",{month:"short", day:"numeric"});
+  var endS = end.toLocaleDateString("en-US",{month:"short", day:"numeric", year:"numeric"});
+  return startS + " – " + endS;
+}
+function providerById(id){ return state.providers.find(function(p){return p.id===id;}); }
+function assistantById(id){ return state.assistants.find(function(a){return a.id===id;}); }
+
+/* is this person off on this date, per a time-off entry? */
+function isOff(who, refId, dateStr){
+  return state.timeOff.some(function(x){ return x.who===who && x.refId===refId && dateStr>=x.start && dateStr<=x.end; });
+}
+
+/* ---------------- persistence (Supabase) ---------------- */
+var SUPABASE_URL = "https://muqvypndafvglthlclsb.supabase.co";
+var SUPABASE_KEY = "sb_publishable_4UnMbFiLakFzwV2jjvBmQA_jxhnRikE";
+
+function scheduleSave(){
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(doSave, 500);
+}
+function doSave(){
+  if(!dirty) return;
+  dirty = false;
+  if(db){
+    db.from("app_state").update({ data: state }).eq("id", 1).then(function(res){
+      if(res.error) console.error("save failed", res.error);
+      else flashSaved();
+    });
+  } else { flashSaved(); }
+}
+function flashSaved(){
+  var el = document.getElementById("saveStatus");
+  el.textContent = "Saved"; el.classList.add("show");
+  setTimeout(function(){ el.classList.remove("show"); }, 1200);
+}
+
+async function initDb(){
+  try{
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  }catch(e){ db = null; }
+  if(db){
+    try{
+      var res = await db.from("app_state").select("data").eq("id", 1).single();
+      if(res.data){
+        state = migrateState(res.data.data);
+      } else {
+        state = seedState();
+        await db.from("app_state").upsert({ id:1, data: state });
+      }
+    }catch(e){ state = seedState(); }
+    try{
+      db.channel("app_state_changes")
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "app_state", filter: "id=eq.1" }, function(payload){
+          if(!dirty && payload.new && payload.new.data){ state = migrateState(payload.new.data); render(); }
+        })
+        .subscribe();
+    }catch(e){}
+  } else { state = seedState(); }
+  render();
+}
+function migrateState(s){
+  s.providers = s.providers || [];
+  s.assistants = s.assistants || [];
+  s.timeOff = s.timeOff || [];
+  s.weeks = s.weeks || {};
+  var touchedOldFormat = false;
+  s.providers.forEach(function(p){
+    p.templates = p.templates || [];
+    p.activeTemplateId = p.activeTemplateId || "";
+    DAYS.forEach(function(d){
+      var day = p.days && p.days[d];
+      if(day && !day.blocks){
+        touchedOldFormat = true;
+        var oldStart = (p.hours && p.hours.start) || "08:00";
+        var oldEnd = (p.hours && p.hours.end) || "17:00";
+        var oldSkills = day.skills||[];
+        var wasSurgery = oldSkills.indexOf("surgery") !== -1;
+        p.days[d] = { blocks: {
+          AM: day.location && day.location!=="Off"
+            ? { active:true, type: wasSurgery?"Surgery":"Clinic", location:day.location, start:oldStart, end:oldEnd, need:day.need||0,
+                skillTag: "surgery", skillMin: oldSkills.length ? (day.need||0) : 0 }
+            : blankBlock(),
+          PM: blankBlock()
+        }};
+      } else if(!day){
+        p.days = p.days || {};
+        p.days[d] = blankDay();
+      } else {
+        BLOCKS.forEach(function(bk){
+          var b = day.blocks[bk];
+          if(!b) return;
+          if(b.skills !== undefined && b.skillTag === undefined){
+            touchedOldFormat = true;
+            b.skillMin = b.skills && b.skills.length ? b.need : (b.skillMin||0);
+            delete b.skills;
+          }
+          if(b.skillTag !== "surgery"){ b.skillTag = "surgery"; touchedOldFormat = true; }
+          if(typeof b.skillMin !== "number") b.skillMin = 0;
+        });
+      }
+    });
+    delete p.hours;
+  });
+  s.assistants.forEach(function(a){
+    if(a.surgeryTrained === undefined){
+      var tags = a.skills || [];
+      a.surgeryTrained = tags.length ? tags.some(function(t){ return t.indexOf("surg") !== -1; }) : true;
+      a.skills = a.surgeryTrained ? ["surgery"] : [];
+      touchedOldFormat = true;
+    }
+  });
+  if(touchedOldFormat) s.weeks = {};
+  return s;
+}
+
+/* ---------------- auto-assign (simple, transparent) ---------------- */
+function generateWeek(mondayStr){
+  var days = {};
+  DAYS.forEach(function(day, idx){
+    var dateStr = addDays(mondayStr, idx);
+    var slots = [];
+    state.providers.forEach(function(p){
+      var d = p.days[day];
+      if(!d) return;
+      if(isOff("provider", p.id, dateStr)) return;
+      BLOCKS.forEach(function(bk){
+        var b = d.blocks[bk];
+        if(!b || !b.active) return;
+        slots.push({ providerId:p.id, day:day, block:bk, type:b.type, location:b.location, start:b.start, end:b.end, need:b.need, skillTag:b.skillTag, skillMin:Math.min(b.skillMin||0, b.need) });
+      });
+    });
+    slots.sort(function(a,b){ return (b.skillMin - a.skillMin) || (b.need - a.need); });
+    var usedByBlock = { AM:{}, PM:{} };
+    var dayAssignments = [];
+    slots.forEach(function(slot){
+      function candidatePool(exclude){
+        return state.assistants.filter(function(ma){
+          if(!ma.active) return false;
+          if(usedByBlock[slot.block][ma.id]) return false;
+          if(exclude.indexOf(ma.id)!==-1) return false;
+          if(isOff("assistant", ma.id, dateStr)) return false;
+          var av = ma.availability[day];
+          if(!av || !av.on) return false;
+          if(av.start > slot.start || av.end < slot.end) return false;
+          return true;
+        });
+      }
+      function prefScore(ma){
+        return (ma.prefs.preferredProviderId===slot.providerId?2:0) + (ma.prefs.preferredLocation===slot.location?1:0);
+      }
+      var chosen = [];
+      if(slot.skillTag && slot.skillMin > 0){
+        var skilled = candidatePool([]).filter(function(ma){ return ma.skills.indexOf(slot.skillTag)!==-1; });
+        skilled.sort(function(a,b){ var d2=prefScore(b)-prefScore(a); return d2!==0?d2:a.name.localeCompare(b.name); });
+        chosen = skilled.slice(0, slot.skillMin).map(function(ma){ return ma.id; });
+      }
+      var rest = candidatePool(chosen);
+      rest.sort(function(a,b){
+        var sa = prefScore(a) + (slot.skillTag && a.skills.indexOf(slot.skillTag)!==-1 ? 0.5 : 0);
+        var sb = prefScore(b) + (slot.skillTag && b.skills.indexOf(slot.skillTag)!==-1 ? 0.5 : 0);
+        if(sb!==sa) return sb-sa;
+        return a.name.localeCompare(b.name);
+      });
+      chosen = chosen.concat(rest.slice(0, Math.max(0, slot.need - chosen.length)).map(function(ma){ return ma.id; }));
+      chosen.forEach(function(id){ usedByBlock[slot.block][id] = true; });
+      dayAssignments.push({ providerId:slot.providerId, block:slot.block, type:slot.type, location:slot.location, need:slot.need, skillTag:slot.skillTag, skillMin:slot.skillMin, assistantIds:chosen });
+    });
+    days[day] = dayAssignments;
+  });
+  return { generatedAt: new Date().toISOString(), days: days };
+}
+
+function slotWarning(slot){
+  var count = slot.assistantIds.length;
+  if(count < slot.need) return { level:"bad", text:"Short " + (slot.need - count) + " (has " + count + " of " + slot.need + ")" };
+  if(slot.skillTag && slot.skillMin > 0){
+    var skilledCount = slot.assistantIds.filter(function(id){
+      var ma = assistantById(id);
+      return ma && ma.skills.indexOf(slot.skillTag) !== -1;
+    }).length;
+    if(skilledCount < slot.skillMin) return { level:"bad", text:"Needs " + slot.skillMin + " " + slot.skillTag + "-trained, has " + skilledCount };
+  }
+  return null;
+}
+
+/* ---------------- rendering ---------------- */
+var TABS = [
+  {id:"providers", label:"Providers"},
+  {id:"needs", label:"My Schedule"},
+  {id:"assistants", label:"Medical Assistants"},
+  {id:"schedule", label:"Weekly Schedule"},
+  {id:"year", label:"Year Calendar"}
+];
+var currentNeedsProviderId = "";
+
+function render(){
+  if(!state) return;
+  renderTabs();
+  var main = document.getElementById("main");
+  if(currentTab==="providers") main.innerHTML = renderProviders();
+  else if(currentTab==="needs") main.innerHTML = renderNeeds();
+  else if(currentTab==="assistants") main.innerHTML = renderAssistants();
+  else if(currentTab==="schedule") main.innerHTML = renderSchedule();
+  else if(currentTab==="year") main.innerHTML = renderYear();
+  wireEvents();
+}
+function renderTabs(){
+  document.getElementById("tabs").innerHTML = TABS.map(function(t){
+    return '<button data-tab="'+t.id+'" class="'+(t.id===currentTab?"active":"")+'">'+t.label+'</button>';
+  }).join("");
+}
+
+/* ---- Providers tab ---- */
+function renderProviders(){
+  if(!state.providers.length){
+    return '<h2 class="section-title">Providers</h2>'
+      + '<p class="section-sub">Add each physician or PA here. Once added, they set their own weekly schedule and staffing needs.</p>'
+      + '<div class="empty-state">No providers yet — add the first one below.</div>'
+      + addProviderRow();
+  }
+  var cards = state.providers.map(function(p){
+    var workDays = DAYS.filter(function(d){ return p.days[d].blocks.AM.active || p.days[d].blocks.PM.active; });
+    var summary = workDays.length
+      ? workDays.map(function(d){
+          var b = p.days[d].blocks;
+          var parts = [];
+          if(b.AM.active) parts.push("AM " + b.AM.location + (b.AM.type==="Surgery"?" (surgery)":""));
+          if(b.PM.active) parts.push("PM " + b.PM.location + (b.PM.type==="Surgery"?" (surgery)":""));
+          return '<span class="role-tag">'+d+': '+parts.join(", ")+'</span>';
+        }).join(" ")
+      : '<span class="helptext">No schedule set yet — set it on My Schedule.</span>';
+  return '<div class="provider-card" style="--card-color:'+p.color+'">'
+      + '<div class="row-top"><h3>'+esc(p.name)+'</h3>'
+      + '<select data-p-role="'+p.id+'">' + ROLES.concat(ROLES.indexOf(p.role)===-1 ? [p.role] : []).map(function(r){
+          return '<option value="'+esc(r)+'" '+(p.role===r?"selected":"")+'>'+esc(r)+'</option>';
+        }).join("") + '</select>'
+      + '<button class="inline-btn danger" data-remove-provider="'+p.id+'" style="margin-left:auto;">Remove</button></div>'
+      + '<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px;">'+summary+'</div>'
+      + '</div>';
+  }).join("");
+  return '<h2 class="section-title">Providers</h2>'
+    + '<p class="section-sub">Add or remove physicians, PAs, and Mohs surgeons. Each provider manages their own schedule and staffing needs on the My Schedule tab.</p>'
+    + cards + addProviderRow() + renderTimeOff();
+}
+
+/* ---- My Schedule tab ---- */
+function renderNeeds(){
+  if(!state.providers.length){
+    return '<h2 class="section-title">My Schedule</h2><div class="empty-state">Add a provider on the Providers tab first.</div>';
+  }
+  if(!currentNeedsProviderId || !providerById(currentNeedsProviderId)){
+    currentNeedsProviderId = state.providers[0].id;
+  }
+  var p = providerById(currentNeedsProviderId);
+  var picker = '<select id="needsProviderPicker">' + state.providers.map(function(pr){
+    return '<option value="'+pr.id+'" '+(pr.id===p.id?"selected":"")+'>'+esc(pr.name)+' ('+pr.role+')</option>';
+  }).join("") + '</select>';
+
+  var dayRows = DAYS.map(function(d){
+    var day = p.days[d];
+    var blockCols = BLOCKS.map(function(bk){
+      var b = day.blocks[bk];
+      var cls = !b.active ? "block-off" : (b.type==="Surgery" ? "block-surgery" : "block-clinic");
+      var inner = !b.active
+        ? '<p class="helptext" style="margin:6px 0 0;">Off</p>'
+        : '<div class="field-grid" style="grid-template-columns:1fr 1fr; gap:6px;">'
+          + '<div class="field"><label>Type</label><select data-b-type="'+p.id+'|'+d+'|'+bk+'">'
+            + '<option value="Clinic" '+(b.type==="Clinic"?"selected":"")+'">Clinic</option>'
+            + '<option value="Surgery" '+(b.type==="Surgery"?"selected":"")+'">Surgery</option>'
+            + '</select></div>'
+          + '<div class="field"><label>Location</label><select data-b-loc="'+p.id+'|'+d+'|'+bk+'">' + LOCATIONS.map(function(loc){
+              return '<option value="'+loc+'" '+(b.location===loc?"selected":"")+'>'+loc+'</option>';
+            }).join("") + '</select></div>'
+          + '<div class="field"><label>Start</label><input type="time" data-b-start="'+p.id+'|'+d+'|'+bk+'" value="'+esc(b.start)+'"></div>'
+          + '<div class="field"><label>End</label><input type="time" data-b-end="'+p.id+'|'+d+'|'+bk+'" value="'+esc(b.end)+'"></div>'
+          + '</div>'
+          + '<div class="one-line-row"><div class="field"><label>Total MAs needed</label><input type="number" min="0" max="8" data-b-need="'+p.id+'|'+d+'|'+bk+'" value="'+b.need+'"></div>'
+          + '<div class="field"><label>Surgery-trained required</label><input type="number" min="0" max="'+b.need+'" data-b-skillmin="'+p.id+'|'+d+'|'+bk+'" value="'+b.skillMin+'"></div></div>';
+      return '<div class="block-card '+cls+'">'
+        + '<div class="block-head"><label class="toggle-chip '+(b.active?"on":"")+'"><input type="checkbox" data-b-active="'+p.id+'|'+d+'|'+bk+'" '+(b.active?"checked":"")+'> '+BLOCK_LABEL[bk]+'</label>'
+        + (b.active ? '<span class="block-type-tag '+(b.type==="Surgery"?"surg":"clin")+'">'+b.type+'</span>' : '')
+        + '</div>' + inner + '</div>';
+    }).join("");
+    return '<div class="day-section">'
+      + '<div class="day-section-head">'+DAY_FULL[d]+'</div>'
+      + '<div class="block-grid">'+blockCols+'</div>'
+      + '</div>';
+  }).join("");
+
+  return '<h2 class="section-title">My Schedule</h2>'
+    + '<p class="section-sub">Set your own hours, location, and staffing needs — split into a morning and afternoon block per day.</p>'
+    + '<div class="panel"><div class="field" style="max-width:280px; margin-bottom:4px;"><label>Viewing schedule for</label>'+picker+'</div></div>'
+    + renderTemplateBar(p)
+    + dayRows;
+}
+
+function renderTemplateBar(p){
+  var opts = '<option value="">— choose a saved template —</option>' + p.templates.map(function(t){
+    return '<option value="'+t.id+'" '+(p.activeTemplateId===t.id?"selected":"")+'>'+esc(t.name)+'</option>';
+  }).join("");
+  return '<div class="panel">'
+    + '<h3 style="margin:0 0 4px; font-size:14px;">Weekly template</h3>'
+    + '<p class="helptext" style="margin-top:0;">Save the pattern below so it can be re-applied later, or load a saved one.</p>'
+    + '<div class="add-row">'
+    + '<select id="templateLoadPicker">'+opts+'</select>'
+    + '<button class="inline-btn" id="templateApplyBtn">Load</button>'
+    + '<button class="inline-btn danger" id="templateDeleteBtn">Delete selected</button>'
+    + '</div>'
+    + '<div class="add-row">'
+    + '<input type="text" id="templateNewName" placeholder="Name this template (e.g. Standard week)">'
+    + '<button class="primary-btn" id="templateSaveBtn">Save current schedule as template</button>'
+    + '</div></div>';
+}
+
+function addProviderRow(){
+  return '<div class="panel"><div class="add-row">'
+    + '<input type="text" id="newProviderName" placeholder="New provider name">'
+    + '<select id="newProviderRole">' + ROLES.map(function(r){ return '<option value="'+esc(r)+'">'+esc(r)+'</option>'; }).join("") + '</select>'
+    + '<button class="primary-btn" id="addProviderBtn">Add provider</button>'
+    + '</div></div>';
+}
+
+function renderTimeOff(){
+  var who = {}; state.providers.forEach(function(p){who["provider|"+p.id]=p.name;}); state.assistants.forEach(function(a){who["assistant|"+a.id]=a.name;});
+  var rows = state.timeOff.map(function(x){
+    return '<div class="field-grid" style="align-items:end; margin-bottom:8px; border-bottom:1px solid var(--line); padding-bottom:8px;">'
+      + '<div class="field"><label>Who</label><div>'+esc(who[x.who+"|"+x.refId] || "—")+'</div></div>'
+      + '<div class="field"><label>Start</label><input type="date" data-x-start="'+x.id+'" value="'+esc(x.start)+'"></div>'
+      + '<div class="field"><label>End</label><input type="date" data-x-end="'+x.id+'" value="'+esc(x.end)+'"></div>'
+      + '<div class="field"><label>Label</label><input type="text" data-x-label="'+x.id+'" value="'+esc(x.label)+'"></div>'
+      + '<button class="inline-btn danger" data-remove-x="'+x.id+'">Remove</button></div>';
+  }).join("") || '<p class="helptext">No time off on file.</p>';
+  var opts = state.providers.map(function(p){ return '<option value="provider|'+p.id+'">'+esc(p.name)+' (provider)</option>'; })
+    .concat(state.assistants.map(function(a){ return '<option value="assistant|'+a.id+'">'+esc(a.name)+' (MA)</option>'; })).join("");
+  return '<div class="panel"><h3 style="margin-top:0; font-size:14px;">Time off / leave</h3>'
+    + '<p class="helptext">Works for a provider or a medical assistant — they are unavailable for every date in the range.</p>'
+    + rows + '<div class="add-row">'
+    + '<select id="newXWho">'+(opts||'<option value="">Add a provider or MA first</option>')+'</select>'
+    + '<input type="date" id="newXStart"><input type="date" id="newXEnd">'
+    + '<input type="text" id="newXLabel" placeholder="Label (e.g. Vacation)">'
+    + '<button class="primary-btn" id="addXBtn">Add</button></div></div>';
+}
+
+/* ---- Assistants tab ---- */
+function renderAssistants(){
+  var provOpts = '<option value="">No preference</option>' + state.providers.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join("");
+  var locOpts = '<option value="">No preference</option>' + LOCATIONS.map(function(l){ return '<option value="'+l+'">'+l+'</option>'; }).join("");
+  if(!state.assistants.length){
+    return '<h2 class="section-title">Medical Assistants</h2>'
+      + '<p class="section-sub">Add the support-staff pool. Each MA can list a preferred provider/location and the hours they can work.</p>'
+      + '<div class="empty-state">No medical assistants yet — add the first one below.</div>' + addMaRow();
+  }
+  var cards = state.assistants.map(function(a){
+    var avDays = DAYS.map(function(d){
+      var av = a.availability[d];
+      return '<div class="field"><label>'+d+'</label>'
+        + '<label class="toggle-chip '+(av.on?"on":"")+'" style="justify-content:center; margin-bottom:4px;"><input type="checkbox" data-a-avon="'+a.id+'|'+d+'" '+(av.on?"checked":"")+'> Works</label>'
+        + (av.on ? '<input type="time" data-a-avstart="'+a.id+'|'+d+'" value="'+esc(av.start)+'" style="margin-bottom:3px;">'
+                 + '<input type="time" data-a-avend="'+a.id+'|'+d+'" value="'+esc(av.end)+'">' : '')
+        + '</div>';
+    }).join("");
+    return '<div class="provider-card" style="--card-color:'+(a.active?"var(--teal-500)":"var(--line)")+'">'
+      + '<div class="row-top"><h3>'+esc(a.name)+'</h3>'
+      + '<label class="toggle-chip '+(a.active?"on":"")+'"><input type="checkbox" data-a-active="'+a.id+'" '+(a.active?"checked":"")+'> Active</label>'
+      + '<label class="toggle-chip '+(a.surgeryTrained?"on":"")+'"><input type="checkbox" data-a-surgery="'+a.id+'" '+(a.surgeryTrained?"checked":"")+'> Surgery-trained</label>'
+      + '<button class="inline-btn danger" data-remove-ma="'+a.id+'" style="margin-left:auto;">Remove</button></div>'
+      + '<div class="field-grid">'
+      + '<div class="field"><label>Preferred provider</label><select data-a-prefprov="'+a.id+'">'+provOpts.replace('value="'+a.prefs.preferredProviderId+'"','value="'+a.prefs.preferredProviderId+'" selected')+'</select></div>'
+      + '<div class="field"><label>Preferred location</label><select data-a-prefloc="'+a.id+'">'+locOpts.replace('value="'+a.prefs.preferredLocation+'"','value="'+a.prefs.preferredLocation+'" selected')+'</select></div>'
+      + '</div>'
+      + '<p class="helptext" style="margin-top:12px;">Weekly availability</p>'
+      + '<div class="day-grid">'+avDays+'</div></div>';
+  }).join("");
+  return '<h2 class="section-title">Medical Assistants</h2>'
+    + '<p class="section-sub">Preferred provider/location are soft — used to break ties. Availability hours are hard.</p>'
+    + cards + addMaRow();
+}
+function addMaRow(){
+  return '<div class="panel"><div class="add-row">'
+    + '<input type="text" id="newMaName" placeholder="New medical assistant name">'
+    + '<button class="primary-btn" id="addMaBtn">Add medical assistant</button></div></div>';
+}
+
+/* ---- Weekly schedule tab ---- */
+function ensureWeek(mondayStr){
+  if(!state.weeks[mondayStr]){
+    state.weeks[mondayStr] = generateWeek(mondayStr);
+    scheduleSave();
+  }
+  return state.weeks[mondayStr];
+}
+function renderSchedule(){
+  if(!state.providers.length){
+    return '<h2 class="section-title">Weekly Schedule</h2><div class="empty-state">Add at least one provider first.</div>';
+  }
+  var week = ensureWeek(currentWeekStart);
+  var cols = DAYS.map(function(day, idx){
+    var dateStr = addDays(currentWeekStart, idx);
+    var dObj = parseDate(dateStr);
+    var dayAssignments = (week.days[day] || []).slice().sort(function(a,b){
+      if(a.block !== b.block) return a.block === "AM" ? -1 : 1;
+      return providerById(a.providerId).name.localeCompare(providerById(b.providerId).name);
+    });
+    var slotsHtml = dayAssignments.length ? dayAssignments.map(function(slot){
+      var p = providerById(slot.providerId);
+      if(!p) return "";
+      var warn = slotWarning(slot);
+      var badgeRow = slot.assistantIds.map(function(id){
+        var a = assistantById(id);
+        if(!a) return "";
+        var hasSkill = slot.skillTag && a.skills.indexOf(slot.skillTag)!==-1;
+        return '<span class="ma-badge '+(hasSkill?"surg":"")+'">'+esc(a.name)+'<button data-unassign="'+day+'|'+slot.providerId+'|'+slot.block+'|'+id+'">×</button></span>';
+      }).join("");
+      var avail = state.assistants.filter(function(a){ return a.active && slot.assistantIds.indexOf(a.id)===-1; });
+      var opts = '<option value="">+ Add medical assistant…</option>' + avail.map(function(a){
+        return '<option value="'+a.id+'">'+esc(a.name)+'</option>';
+      }).join("");
+      return '<div class="slot" style="--slot-color:'+p.color+'">'
+        + '<div class="slot-head"><strong>'+esc(p.name)+'</strong><span class="loc">'+BLOCK_LABEL[slot.block]+' · '+slot.location+'</span></div>'
+        + '<span class="block-type-tag '+(slot.type==="Surgery"?"surg":"clin")+'" style="margin:2px 0 4px; display:inline-block;">'+slot.type+'</span>'
+        + (slot.skillMin > 0 ? '<div class="loc">at least '+slot.skillMin+' surgery-trained</div>' : '')
+        + '<div class="badge-row">'+badgeRow+'</div>'
+        + (warn ? '<span class="warn-tag '+(warn.level==="bad"?"bad":"")+'">'+warn.text+'</span>' : '')
+        + '<select class="add-ma-select" data-assign="'+day+'|'+slot.providerId+'|'+slot.block+'">'+opts+'</select>'
+        + '</div>';
+    }).join("") : '<p class="helptext">No providers scheduled.</p>';
+    return '<td><div class="day-col-head">'+day+'<small>'+dObj.toLocaleDateString("en-US",{month:"short",day:"numeric"})+'</small></div>'+slotsHtml+'</td>';
+  }).join("");
+  return '<h2 class="section-title">Weekly Schedule</h2>'
+    + '<p class="section-sub">Suggestions are generated automatically. Add or remove an MA on any slot to override.</p>'
+    + '<div class="week-nav">'
+    + '<button class="icon-btn" id="prevWeek">‹</button><span class="rng">'+weekLabel(currentWeekStart)+'</span><button class="icon-btn" id="nextWeek">›</button>'
+    + '<button class="inline-btn" id="thisWeek">This week</button>'
+    + '<button class="primary-btn" id="regenBtn" style="margin-left:auto;">Regenerate suggestions</button></div>'
+    + '<table class="week-table"><tbody><tr>'+cols+'</tr></tbody></table>';
+}
+
+/* ---- Year calendar tab ---- */
+function renderYear(){
+  if(!state.providers.length){
+    return '<h2 class="section-title">Year Calendar</h2><div class="empty-state">Add at least one provider first.</div>';
+  }
+  var months = []; for(var m=0;m<12;m++) months.push(renderMonth(currentYear, m));
+  return '<h2 class="section-title">Year Calendar</h2>'
+    + '<p class="section-sub">Coverage built from each provider’s weekly pattern and time off. Click a day to open that week.</p>'
+    + '<div class="week-nav"><button class="icon-btn" id="prevYear">‹</button><span class="rng">'+currentYear+'</span><button class="icon-btn" id="nextYear">›</button></div>'
+    + '<div class="legend">' + state.providers.map(function(p){ return '<span><i style="background:'+p.color+'"></i>'+esc(p.name)+'</span>'; }).join("")
+    + '<span><i style="background:var(--coral)"></i>On leave / off</span></div>'
+    + '<div class="month-grid-wrap">' + months.join("") + '</div>';
+}
+function renderMonth(year, monthIdx){
+  var first = new Date(year, monthIdx, 1);
+  var startDow = first.getDay();
+  var daysInMonth = new Date(year, monthIdx+1, 0).getDate();
+  var dowLabels = ["S","M","T","W","T","F","S"];
+  var cells = dowLabels.map(function(l){ return '<div class="dow">'+l+'</div>'; }).join("");
+  for(var i=0;i<startDow;i++) cells += '<div class="day-cell empty"></div>';
+  for(var d=1; d<=daysInMonth; d++){
+    var dateObj = new Date(year, monthIdx, d);
+    var dateStr = fmtDate(dateObj);
+    var dow = dateObj.getDay();
+    if(dow>=1 && dow<=5){
+      var dayKey = DAYS[dow-1];
+      var mondayStr = mondayOf(dateObj);
+      var dots = "";
+      state.providers.forEach(function(p){
+        var pd = p.days[dayKey];
+        if(!pd) return;
+        var working = pd.blocks.AM.active || pd.blocks.PM.active;
+        if(!working) return;
+        if(isOff("provider", p.id, dateStr)){
+          dots += '<span class="dot" style="background:var(--coral)" title="'+esc(p.name)+' — off">'+p.name.charAt(0)+'</span>';
+        } else {
+          BLOCKS.forEach(function(bk){
+            var b = pd.blocks[bk];
+            if(!b.active) return;
+            dots += '<span class="dot" style="background:'+p.color+'" title="'+esc(p.name)+' — '+BLOCK_LABEL[bk]+' '+b.location+(b.type==="Surgery"?" (surgery)":"")+'">'+b.location.charAt(0)+'</span>';
+          });
+        }
+      });
+      cells += '<div class="day-cell" data-goto-week="'+mondayStr+'"><div class="dn">'+d+'</div><div class="dots">'+dots+'</div></div>';
+    } else {
+      cells += '<div class="day-cell empty"><div class="dn" style="opacity:.35;">'+d+'</div></div>';
+    }
+  }
+  return '<div class="month"><h3>'+MONTH_NAMES[monthIdx]+'</h3><div class="month-grid">'+cells+'</div></div>';
+}
+
+/* ---------------- events ---------------- */
+function wireEvents(){
+  document.querySelectorAll("nav.tabs button").forEach(function(btn){
+    btn.onclick = function(){ currentTab = btn.getAttribute("data-tab"); render(); };
+  });
+  var main = document.getElementById("main");
+
+  /* Providers */
+  main.querySelectorAll("[data-p-role]").forEach(function(el){ el.onchange=function(){
+    providerById(el.getAttribute("data-p-role")).role = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-remove-provider]").forEach(function(el){ el.onclick=function(){
+    var id = el.getAttribute("data-remove-provider");
+    if(!confirm("Remove this provider?")) return;
+    state.providers = state.providers.filter(function(p){ return p.id!==id; });
+    state.timeOff = state.timeOff.filter(function(x){ return !(x.who==="provider" && x.refId===id); });
+    persistAndRerender();
+  };});
+  var addProvBtn = document.getElementById("addProviderBtn");
+  if(addProvBtn) addProvBtn.onclick = function(){
+    var name = document.getElementById("newProviderName").value.trim();
+    if(!name) return;
+    var role = document.getElementById("newProviderRole").value;
+    var days = {}; DAYS.forEach(function(d){ days[d] = blankDay(); });
+    state.providers.push({ id: uid("p"), name:name, role:role, color: PALETTE[state.providers.length % PALETTE.length], days:days, templates:[], activeTemplateId:"" });
+    persistAndRerender();
+  };
+
+  /* My Schedule */
+  main.querySelectorAll("[data-b-active]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-active").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].active = el.checked; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-type]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-type").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].type = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-loc]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-loc").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].location = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-start]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-start").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].start = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-end]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-end").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].end = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-need]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-need").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].need = parseInt(el.value)||0; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-skillmin]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-skillmin").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].skillMin = parseInt(el.value)||0; persistAndRerender();
+  };});
+  var needsPicker = document.getElementById("needsProviderPicker");
+  if(needsPicker) needsPicker.onchange = function(){ currentNeedsProviderId = needsPicker.value; render(); };
+
+  /* Weekly template controls */
+  var tplSaveBtn = document.getElementById("templateSaveBtn");
+  if(tplSaveBtn) tplSaveBtn.onclick = function(){
+    var p = providerById(currentNeedsProviderId);
+    var name = document.getElementById("templateNewName").value.trim();
+    if(!name) return;
+    var tpl = { id: uid("t"), name:name, days: JSON.parse(JSON.stringify(p.days)) };
+    p.templates.push(tpl);
+    p.activeTemplateId = tpl.id;
+    persistAndRerender();
+  };
+  var tplApplyBtn = document.getElementById("templateApplyBtn");
+  if(tplApplyBtn) tplApplyBtn.onclick = function(){
+    var p = providerById(currentNeedsProviderId);
+    var id = document.getElementById("templateLoadPicker").value;
+    if(!id) return;
+    var tpl = p.templates.find(function(t){ return t.id===id; });
+    if(!tpl) return;
+    p.days = JSON.parse(JSON.stringify(tpl.days));
+    p.activeTemplateId = tpl.id;
+    state.weeks = {};
+    persistAndRerender();
+  };
+  var tplDeleteBtn = document.getElementById("templateDeleteBtn");
+  if(tplDeleteBtn) tplDeleteBtn.onclick = function(){
+    var p = providerById(currentNeedsProviderId);
+    var id = document.getElementById("templateLoadPicker").value;
+    if(!id) return;
+    if(!confirm("Delete this saved template?")) return;
+    p.templates = p.templates.filter(function(t){ return t.id!==id; });
+    if(p.activeTemplateId===id) p.activeTemplateId = "";
+    persistAndRerender();
+  };
+
+  /* Time off */
+  main.querySelectorAll("[data-x-start]").forEach(function(el){ el.onchange=function(){ findX(el.getAttribute("data-x-start")).start = el.value; persistAndRerender(); };});
+  main.querySelectorAll("[data-x-end]").forEach(function(el){ el.onchange=function(){ findX(el.getAttribute("data-x-end")).end = el.value; persistAndRerender(); };});
+  main.querySelectorAll("[data-x-label]").forEach(function(el){ el.onchange=function(){ findX(el.getAttribute("data-x-label")).label = el.value; persistAndRerender(); };});
+  main.querySelectorAll("[data-remove-x]").forEach(function(el){ el.onclick=function(){
+    var id = el.getAttribute("data-remove-x");
+    state.timeOff = state.timeOff.filter(function(x){ return x.id!==id; });
+    persistAndRerender();
+  };});
+  var addXBtn = document.getElementById("addXBtn");
+  if(addXBtn) addXBtn.onclick = function(){
+    var whoVal = document.getElementById("newXWho").value;
+    if(!whoVal) return;
+    var parts = whoVal.split("|");
+    var start = document.getElementById("newXStart").value;
+    var end = document.getElementById("newXEnd").value;
+    var label = document.getElementById("newXLabel").value.trim() || "Time off";
+    if(!start || !end) return;
+    state.timeOff.push({ id: uid("x"), who:parts[0], refId:parts[1], start:start, end:end, label:label });
+    persistAndRerender();
+  };
+
+  /* Assistants */
+  main.querySelectorAll("[data-a-active]").forEach(function(el){ el.onchange=function(){ assistantById(el.getAttribute("data-a-active")).active = el.checked; persistAndRerender(); };});
+  main.querySelectorAll("[data-a-surgery]").forEach(function(el){ el.onchange=function(){
+    var ma = assistantById(el.getAttribute("data-a-surgery"));
+    ma.surgeryTrained = el.checked;
+    ma.skills = el.checked ? ["surgery"] : [];
+    persistAndRerender();
+  };});
+  main.querySelectorAll("[data-a-prefprov]").forEach(function(el){ el.onchange=function(){ assistantById(el.getAttribute("data-a-prefprov")).prefs.preferredProviderId = el.value; persistAndRerender(); };});
+  main.querySelectorAll("[data-a-prefloc]").forEach(function(el){ el.onchange=function(){ assistantById(el.getAttribute("data-a-prefloc")).prefs.preferredLocation = el.value; persistAndRerender(); };});
+  main.querySelectorAll("[data-a-avon]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-a-avon").split("|"); assistantById(p[0]).availability[p[1]].on = el.checked; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-a-avstart]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-a-avstart").split("|"); assistantById(p[0]).availability[p[1]].start = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-a-avend]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-a-avend").split("|"); assistantById(p[0]).availability[p[1]].end = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-remove-ma]").forEach(function(el){ el.onclick=function(){
+    var id = el.getAttribute("data-remove-ma");
+    if(!confirm("Remove this medical assistant?")) return;
+    state.assistants = state.assistants.filter(function(a){ return a.id!==id; });
+    state.timeOff = state.timeOff.filter(function(x){ return !(x.who==="assistant" && x.refId===id); });
+    persistAndRerender();
+  };});
+  var addMaBtn = document.getElementById("addMaBtn");
+  if(addMaBtn) addMaBtn.onclick = function(){
+    var name = document.getElementById("newMaName").value.trim();
+    if(!name) return;
+    var availability = {}; DAYS.forEach(function(d){ availability[d] = blankAvailDay(); });
+    state.assistants.push({ id: uid("a"), name:name, active:true, surgeryTrained:true, skills:["surgery"], prefs:{preferredProviderId:"", preferredLocation:""}, availability:availability });
+    persistAndRerender();
+  };
+
+  /* Schedule */
+  var prevWeek = document.getElementById("prevWeek"); if(prevWeek) prevWeek.onclick=function(){ currentWeekStart = addDays(currentWeekStart,-7); render(); };
+  var nextWeek = document.getElementById("nextWeek"); if(nextWeek) nextWeek.onclick=function(){ currentWeekStart = addDays(currentWeekStart,7); render(); };
+  var thisWeek = document.getElementById("thisWeek"); if(thisWeek) thisWeek.onclick=function(){ currentWeekStart = mondayOf(new Date()); render(); };
+  var regenBtn = document.getElementById("regenBtn"); if(regenBtn) regenBtn.onclick=function(){ state.weeks[currentWeekStart] = generateWeek(currentWeekStart); persistAndRerender(); };
+  main.querySelectorAll("[data-unassign]").forEach(function(el){ el.onclick=function(){
+    var p = el.getAttribute("data-unassign").split("|");
+    var slot = state.weeks[currentWeekStart].days[p[0]].find(function(s){ return s.providerId===p[1] && s.block===p[2]; });
+    if(slot) slot.assistantIds = slot.assistantIds.filter(function(id){ return id!==p[3]; });
+    persistAndRerender();
+  };});
+  main.querySelectorAll("[data-assign]").forEach(function(el){ el.onchange=function(){
+    if(!el.value) return;
+    var p = el.getAttribute("data-assign").split("|");
+    var slot = state.weeks[currentWeekStart].days[p[0]].find(function(s){ return s.providerId===p[1] && s.block===p[2]; });
+    if(slot && slot.assistantIds.indexOf(el.value)===-1) slot.assistantIds.push(el.value);
+    persistAndRerender();
+  };});
+
+  /* Year */
+  var prevYear = document.getElementById("prevYear"); if(prevYear) prevYear.onclick=function(){ currentYear--; render(); };
+  var nextYear = document.getElementById("nextYear"); if(nextYear) nextYear.onclick=function(){ currentYear++; render(); };
+  main.querySelectorAll("[data-goto-week]").forEach(function(el){ el.onclick=function(){
+    currentWeekStart = el.getAttribute("data-goto-week"); currentTab = "schedule"; render();
+  };});
+}
+function findX(id){ return state.timeOff.find(function(x){ return x.id===id; }); }
+function persistAndRerender(){ scheduleSave(); render(); }
+
+/* ---------------- boot ---------------- */
+initDb();
+
+})();
+</script>
+</body>
+</html>
