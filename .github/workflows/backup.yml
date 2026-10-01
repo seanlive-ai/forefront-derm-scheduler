@@ -1,0 +1,57 @@
+name: Daily backup
+
+on:
+  schedule:
+    - cron: "17 9 * * *"   # daily, ~4am Central
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    env:
+      SITE_URL: https://forefront-derm-scheduler.vercel.app/
+      SUPABASE_URL: https://muqvypndafvglthlclsb.supabase.co
+      # Public publishable key (same one embedded in index.html) -- access is governed by RLS.
+      SUPABASE_KEY: sb_publishable_4UnMbFiLakFzwV2jjvBmQA_jxhnRikE
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pull live page
+        run: |
+          set -euo pipefail
+          curl -fsSL "$SITE_URL" -o /tmp/index.html
+          grep -q "Forefront Dermatology" /tmp/index.html   # never commit an error page
+          cp /tmp/index.html index.html
+
+      - name: Pull live data
+        run: |
+          set -euo pipefail
+          mkdir -p backups
+          curl -fsSL "$SUPABASE_URL/rest/v1/app_state?id=eq.1&select=data" \
+            -H "apikey: $SUPABASE_KEY" -o /tmp/state.json
+          python3 - <<'PY'
+          import json
+          rows = json.load(open("/tmp/state.json"))
+          assert isinstance(rows, list) and rows and "providers" in rows[0]["data"], "unexpected response"
+          with open("backups/app_state-latest.json", "w") as f:
+              json.dump(rows[0]["data"], f, indent=2, sort_keys=True)
+          PY
+
+      - name: Commit if anything changed
+        run: |
+          set -euo pipefail
+          if [ -n "$(git status --porcelain)" ]; then
+            if [ -n "$(git status --porcelain backups/app_state-latest.json)" ]; then
+              cp backups/app_state-latest.json "backups/app_state-$(date -u +%F).json"
+            fi
+            git config user.name "backup-bot"
+            git config user.email "backup-bot@users.noreply.github.com"
+            git add -A
+            git commit -m "Automated backup $(date -u +%F)"
+            git push
+          else
+            echo "No changes."
+          fi
