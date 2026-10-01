@@ -255,10 +255,11 @@ function parseSkills(s){ return (s||"").split(",").map(function(x){return x.trim
 
 /* ---------------- blank seed state ---------------- */
 function seedState(){
-  return { providers: [], assistants: [], timeOff: [], weeks: {} };
+  return { providers: [], assistants: [], timeOff: [], weeks: {}, pairs: [], monthSnapshots: {} };
 }
 function blankDay(){ return { blocks: { AM: blankBlock(), PM: blankBlock() } }; }
-function blankBlock(){ return { active:false, type:"Clinic", location:"North", start:"08:00", end:"12:00", need:0, skillTag:"surgery", skillMin:0 }; }
+function blankBlock(){ return { active:false, type:"Clinic", location:"North", start:"08:00", end:"12:00", need:0, skillTag:"surgery", skillMin:0, followsPairing:false, surgeryProfile:null }; }
+function blankProfile(){ return { location:"North", start:"13:00", end:"17:00", need:0, skillMin:0 }; }
 function blankAvailDay(){ return { on:true, start:"08:00", end:"17:00" }; }
 var BLOCKS = ["AM","PM"];
 var BLOCK_LABEL = {AM:"Morning", PM:"Afternoon"};
@@ -285,6 +286,11 @@ function fmtDate(dt){
 }
 function parseDate(s){ var p=s.split("-").map(Number); return new Date(p[0], p[1]-1, p[2]); }
 function addDays(dateStr, n){ var dt = parseDate(dateStr); dt.setDate(dt.getDate()+n); return fmtDate(dt); }
+function weeksBetween(mondayA, mondayB){
+  var a=parseDate(mondayA), b=parseDate(mondayB);
+  return Math.round((b-a)/(7*24*3600*1000));
+}
+function monthKey(year, monthIdx){ return year+"-"+(""+(monthIdx+1)).padStart(2,"0"); }
 function weekLabel(mondayStr){
   var start=parseDate(mondayStr), end=parseDate(addDays(mondayStr,4));
   var startS = start.toLocaleDateString("en-US",{month:"short", day:"numeric"});
@@ -297,6 +303,41 @@ function assistantById(id){ return state.assistants.find(function(a){return a.id
 /* is this person off on this date, per a time-off entry? */
 function isOff(who, refId, dateStr){
   return state.timeOff.some(function(x){ return x.who===who && x.refId===refId && dateStr>=x.start && dateStr<=x.end; });
+}
+
+/* ---------------- pairing (alternating surgery/clinic weeks) ---------------- */
+function pairForProvider(providerId){
+  return state.pairs.find(function(pr){ return pr.providerAId===providerId || pr.providerBId===providerId; });
+}
+/* computed default status for a provider on a given week: "Surgery" | "Clinic" | null (not paired) */
+function computedWeekStatus(providerId, mondayStr){
+  var pair = pairForProvider(providerId);
+  if(!pair || !pair.anchorMonday) return null;
+  var diff = weeksBetween(pair.anchorMonday, mondayStr);
+  var parity = ((diff % 2) + 2) % 2; // 0 = same parity as anchor week, 1 = opposite
+  var aIsSurgery = parity===0 ? pair.aSurgeryOnAnchor : !pair.aSurgeryOnAnchor;
+  var isA = providerId === pair.providerAId;
+  var thisIsSurgery = isA ? aIsSurgery : !aIsSurgery;
+  return thisIsSurgery ? "Surgery" : "Clinic";
+}
+/* effective status for a provider on a given week, honoring a manual per-week override if set */
+function effectiveWeekStatus(providerId, mondayStr){
+  var week = state.weeks[mondayStr];
+  var override = week && week.typeOverrides && week.typeOverrides[providerId];
+  return override || computedWeekStatus(providerId, mondayStr);
+}
+/* resolve a block to its effective config for a specific week (handles pairing + profiles) */
+function effectiveBlock(provider, day, bk, mondayStr){
+  var b = provider.days[day].blocks[bk];
+  if(!b.followsPairing){
+    return { active:b.active, type:b.type, location:b.location, start:b.start, end:b.end, need:b.need, skillTag:b.skillTag, skillMin:b.skillMin };
+  }
+  var status = effectiveWeekStatus(provider.id, mondayStr) || "Clinic";
+  if(status === "Surgery" && b.surgeryProfile){
+    var sp = b.surgeryProfile;
+    return { active:b.active, type:"Surgery", location:sp.location, start:sp.start, end:sp.end, need:sp.need, skillTag:"surgery", skillMin:sp.skillMin };
+  }
+  return { active:b.active, type:"Clinic", location:b.location, start:b.start, end:b.end, need:b.need, skillTag:b.skillTag, skillMin:b.skillMin };
 }
 
 /* ---------------- persistence (Supabase) ---------------- */
@@ -353,6 +394,8 @@ function migrateState(s){
   s.assistants = s.assistants || [];
   s.timeOff = s.timeOff || [];
   s.weeks = s.weeks || {};
+  s.pairs = s.pairs || [];
+  s.monthSnapshots = s.monthSnapshots || {};
   var touchedOldFormat = false;
   s.providers.forEach(function(p){
     p.templates = p.templates || [];
@@ -368,7 +411,7 @@ function migrateState(s){
         p.days[d] = { blocks: {
           AM: day.location && day.location!=="Off"
             ? { active:true, type: wasSurgery?"Surgery":"Clinic", location:day.location, start:oldStart, end:oldEnd, need:day.need||0,
-                skillTag: "surgery", skillMin: oldSkills.length ? (day.need||0) : 0 }
+                skillTag: "surgery", skillMin: oldSkills.length ? (day.need||0) : 0, followsPairing:false, surgeryProfile:null }
             : blankBlock(),
           PM: blankBlock()
         }};
@@ -387,6 +430,7 @@ function migrateState(s){
           // surgery-trained is the only skill concept, and it's independent of Clinic/Surgery type now
           if(b.skillTag !== "surgery"){ b.skillTag = "surgery"; touchedOldFormat = true; }
           if(typeof b.skillMin !== "number") b.skillMin = 0;
+          if(b.followsPairing === undefined){ b.followsPairing = false; b.surgeryProfile = null; touchedOldFormat = true; }
         });
       }
     });
@@ -415,7 +459,7 @@ function migrateState(s){
       block later the same day (e.g. AM then PM).
    4. If we run short on total headcount OR on the skill minimum, the block is
       flagged — nothing is silently left incomplete. */
-function generateWeek(mondayStr){
+function generateWeek(mondayStr, existingWeek){
   var days = {};
   DAYS.forEach(function(day, idx){
     var dateStr = addDays(mondayStr, idx);
@@ -425,7 +469,7 @@ function generateWeek(mondayStr){
       if(!d) return;
       if(isOff("provider", p.id, dateStr)) return;
       BLOCKS.forEach(function(bk){
-        var b = d.blocks[bk];
+        var b = effectiveBlock(p, day, bk, mondayStr);
         if(!b || !b.active) return;
         slots.push({ providerId:p.id, day:day, block:bk, type:b.type, location:b.location, start:b.start, end:b.end, need:b.need, skillTag:b.skillTag, skillMin:Math.min(b.skillMin||0, b.need) });
       });
@@ -433,7 +477,25 @@ function generateWeek(mondayStr){
     slots.sort(function(a,b){ return (b.skillMin - a.skillMin) || (b.need - a.need); });
     var usedByBlock = { AM:{}, PM:{} };
     var dayAssignments = [];
+
+    // carry forward any locked (manually confirmed) slots untouched, and reserve their MAs
+    var existingDay = existingWeek && existingWeek.days && existingWeek.days[day];
+    var lockedSlots = {};
+    if(existingDay){
+      existingDay.forEach(function(es){
+        if(es.locked){
+          lockedSlots[es.providerId+"|"+es.block] = es;
+          es.assistantIds.forEach(function(id){ usedByBlock[es.block][id] = true; });
+        }
+      });
+    }
+
     slots.forEach(function(slot){
+      var lockKey = slot.providerId+"|"+slot.block;
+      if(lockedSlots[lockKey]){
+        dayAssignments.push(lockedSlots[lockKey]);
+        return;
+      }
       function candidatePool(exclude){
         return state.assistants.filter(function(ma){
           if(!ma.active) return false;
@@ -464,11 +526,11 @@ function generateWeek(mondayStr){
       });
       chosen = chosen.concat(rest.slice(0, Math.max(0, slot.need - chosen.length)).map(function(ma){ return ma.id; }));
       chosen.forEach(function(id){ usedByBlock[slot.block][id] = true; });
-      dayAssignments.push({ providerId:slot.providerId, block:slot.block, type:slot.type, location:slot.location, need:slot.need, skillTag:slot.skillTag, skillMin:slot.skillMin, assistantIds:chosen });
+      dayAssignments.push({ providerId:slot.providerId, block:slot.block, type:slot.type, location:slot.location, need:slot.need, skillTag:slot.skillTag, skillMin:slot.skillMin, assistantIds:chosen, locked:false });
     });
     days[day] = dayAssignments;
   });
-  return { generatedAt: new Date().toISOString(), days: days };
+  return { generatedAt: new Date().toISOString(), days: days, typeOverrides: (existingWeek && existingWeek.typeOverrides) || {} };
 }
 
 function slotWarning(slot){
@@ -490,9 +552,13 @@ var TABS = [
   {id:"needs", label:"My Schedule"},
   {id:"assistants", label:"Medical Assistants"},
   {id:"schedule", label:"Weekly Schedule"},
+  {id:"monthly", label:"Monthly"},
   {id:"year", label:"Year Calendar"}
 ];
 var currentNeedsProviderId = "";
+var currentMonthlyYear = new Date().getFullYear();
+var currentMonthlyIdx = new Date().getMonth();
+var viewingSnapshot = null; // {monthKey, index} | null
 
 function render(){
   if(!state) return;
@@ -502,6 +568,7 @@ function render(){
   else if(currentTab==="needs") main.innerHTML = renderNeeds();
   else if(currentTab==="assistants") main.innerHTML = renderAssistants();
   else if(currentTab==="schedule") main.innerHTML = renderSchedule();
+  else if(currentTab==="monthly") main.innerHTML = renderMonthly();
   else if(currentTab==="year") main.innerHTML = renderYear();
   wireEvents();
 }
@@ -541,7 +608,30 @@ function renderProviders(){
   }).join("");
   return '<h2 class="section-title">Providers</h2>'
     + '<p class="section-sub">Add or remove physicians, PAs, and Mohs surgeons. Each provider manages their own hours, location, and staffing needs on the My Schedule tab.</p>'
-    + cards + addProviderRow() + renderTimeOff();
+    + cards + addProviderRow() + renderPairsPanel() + renderTimeOff();
+}
+
+function renderPairsPanel(){
+  var rows = state.pairs.map(function(pair){
+    var pa = providerById(pair.providerAId), pb = providerById(pair.providerBId);
+    return '<div class="field-grid" style="align-items:end; margin-bottom:8px; border-bottom:1px solid var(--line); padding-bottom:8px;">'
+      + '<div class="field"><label>Pair</label><div>'+(pa?esc(pa.name):"—")+' / '+(pb?esc(pb.name):"—")+'</div></div>'
+      + '<div class="field"><label>Anchor Monday</label><input type="date" data-pair-anchor="'+pair.id+'" value="'+esc(pair.anchorMonday)+'"></div>'
+      + '<div class="field"><label>On surgery that anchor week</label><select data-pair-anchorwho="'+pair.id+'">'
+        + '<option value="A" '+(pair.aSurgeryOnAnchor?"selected":"")+'>'+(pa?esc(pa.name):"Provider A")+'</option>'
+        + '<option value="B" '+(!pair.aSurgeryOnAnchor?"selected":"")+'>'+(pb?esc(pb.name):"Provider B")+'</option>'
+        + '</select></div>'
+      + '<button class="inline-btn danger" data-remove-pair="'+pair.id+'">Remove</button></div>';
+  }).join("") || '<p class="helptext">No alternating pairs set up yet.</p>';
+  var provOpts = state.providers.map(function(p){ return '<option value="'+p.id+'">'+esc(p.name)+'</option>'; }).join("");
+  return '<div class="panel"><h3 style="margin-top:0; font-size:14px;">Alternating surgery/clinic pairs</h3>'
+    + '<p class="helptext" style="margin-top:0;">For two providers who always alternate \u2014 when one is on surgery that week, the other is on clinic. Set any Monday as the anchor and who\'s on surgery that week; it repeats indefinitely from there. You can change the anchor anytime.</p>'
+    + rows
+    + '<div class="add-row">'
+    + '<select id="newPairA">'+provOpts+'</select>'
+    + '<select id="newPairB">'+provOpts+'</select>'
+    + '<button class="primary-btn" id="addPairBtn">Add pair</button>'
+    + '</div></div>';
 }
 
 /* ---- My Schedule tab (self-service: a provider controls their own weekly pattern) ---- */
@@ -557,14 +647,51 @@ function renderNeeds(){
     return '<option value="'+pr.id+'" '+(pr.id===p.id?"selected":"")+'>'+esc(pr.name)+' ('+pr.role+')</option>';
   }).join("") + '</select>';
 
+  var pair = pairForProvider(p.id);
   var dayRows = DAYS.map(function(d){
     var day = p.days[d];
     var blockCols = BLOCKS.map(function(bk){
       var b = day.blocks[bk];
-      var cls = !b.active ? "block-off" : (b.type==="Surgery" ? "block-surgery" : "block-clinic");
-      var inner = !b.active
-        ? '<p class="helptext" style="margin:6px 0 0;">Off</p>'
-        : '<div class="field-grid" style="grid-template-columns:1fr 1fr; gap:6px;">'
+      var cls = !b.active ? "block-off" : (b.followsPairing ? "block-clinic" : (b.type==="Surgery" ? "block-surgery" : "block-clinic"));
+      var followToggle = pair
+        ? '<label class="toggle-chip '+(b.followsPairing?"on":"")+'" style="margin:6px 0;"><input type="checkbox" data-b-followpair="'+p.id+'|'+d+'|'+bk+'" '+(b.followsPairing?"checked":"")+'> Follows weekly rotation</label>'
+        : '';
+      var inner;
+      if(!b.active){
+        inner = '<p class="helptext" style="margin:6px 0 0;">Off</p>';
+      } else if(b.followsPairing){
+        var sp = b.surgeryProfile || blankProfile();
+        inner = followToggle
+          + '<p class="helptext" style="margin:2px 0 8px;">Type is set automatically each week from the rotation (override a single week on Weekly Schedule). Fill in both versions below.</p>'
+          + '<div style="border:1px solid var(--line); border-top:3px solid var(--teal-500); background:var(--teal-100); border-radius:var(--radius); padding:8px 10px; margin-bottom:8px;">'
+          + '<strong style="font-size:11px; text-transform:uppercase; letter-spacing:.03em;">Clinic week</strong>'
+          + '<div class="field-grid" style="grid-template-columns:1fr 1fr; gap:6px; margin-top:6px;">'
+            + '<div class="field"><label>Location</label><select data-b-loc="'+p.id+'|'+d+'|'+bk+'">' + LOCATIONS.map(function(loc){
+                return '<option value="'+loc+'" '+(b.location===loc?"selected":"")+'>'+loc+'</option>';
+              }).join("") + '</select></div>'
+            + '<div class="field"><label>&nbsp;</label><div></div></div>'
+            + '<div class="field"><label>Start</label><input type="time" data-b-start="'+p.id+'|'+d+'|'+bk+'" value="'+esc(b.start)+'"></div>'
+            + '<div class="field"><label>End</label><input type="time" data-b-end="'+p.id+'|'+d+'|'+bk+'" value="'+esc(b.end)+'"></div>'
+          + '</div>'
+          + '<div class="one-line-row"><div class="field"><label>Total MAs needed</label><input type="number" min="0" max="8" data-b-need="'+p.id+'|'+d+'|'+bk+'" value="'+b.need+'"></div>'
+          + '<div class="field"><label>Surgery-trained required</label><input type="number" min="0" max="'+b.need+'" data-b-skillmin="'+p.id+'|'+d+'|'+bk+'" value="'+b.skillMin+'"></div></div>'
+          + '</div>'
+          + '<div style="border:1px solid var(--line); border-top:3px solid var(--coral); background:var(--coral-bg); border-radius:var(--radius); padding:8px 10px;">'
+          + '<strong style="font-size:11px; text-transform:uppercase; letter-spacing:.03em;">Surgery week</strong>'
+          + '<div class="field-grid" style="grid-template-columns:1fr 1fr; gap:6px; margin-top:6px;">'
+            + '<div class="field"><label>Location</label><select data-b-sp-loc="'+p.id+'|'+d+'|'+bk+'">' + LOCATIONS.map(function(loc){
+                return '<option value="'+loc+'" '+(sp.location===loc?"selected":"")+'>'+loc+'</option>';
+              }).join("") + '</select></div>'
+            + '<div class="field"><label>&nbsp;</label><div></div></div>'
+            + '<div class="field"><label>Start</label><input type="time" data-b-sp-start="'+p.id+'|'+d+'|'+bk+'" value="'+esc(sp.start)+'"></div>'
+            + '<div class="field"><label>End</label><input type="time" data-b-sp-end="'+p.id+'|'+d+'|'+bk+'" value="'+esc(sp.end)+'"></div>'
+          + '</div>'
+          + '<div class="one-line-row"><div class="field"><label>Total MAs needed</label><input type="number" min="0" max="8" data-b-sp-need="'+p.id+'|'+d+'|'+bk+'" value="'+sp.need+'"></div>'
+          + '<div class="field"><label>Surgery-trained required</label><input type="number" min="0" max="'+sp.need+'" data-b-sp-skillmin="'+p.id+'|'+d+'|'+bk+'" value="'+sp.skillMin+'"></div></div>'
+          + '</div>';
+      } else {
+        inner = followToggle
+          + '<div class="field-grid" style="grid-template-columns:1fr 1fr; gap:6px;">'
           + '<div class="field"><label>Type</label><select data-b-type="'+p.id+'|'+d+'|'+bk+'">'
             + '<option value="Clinic" '+(b.type==="Clinic"?"selected":"")+'>Clinic</option>'
             + '<option value="Surgery" '+(b.type==="Surgery"?"selected":"")+'>Surgery</option>'
@@ -577,9 +704,10 @@ function renderNeeds(){
           + '</div>'
           + '<div class="one-line-row"><div class="field"><label>Total MAs needed</label><input type="number" min="0" max="8" data-b-need="'+p.id+'|'+d+'|'+bk+'" value="'+b.need+'"></div>'
           + '<div class="field"><label>Surgery-trained required</label><input type="number" min="0" max="'+b.need+'" data-b-skillmin="'+p.id+'|'+d+'|'+bk+'" value="'+b.skillMin+'"></div></div>';
+      }
       return '<div class="block-card '+cls+'">'
         + '<div class="block-head"><label class="toggle-chip '+(b.active?"on":"")+'"><input type="checkbox" data-b-active="'+p.id+'|'+d+'|'+bk+'" '+(b.active?"checked":"")+'> '+BLOCK_LABEL[bk]+'</label>'
-        + (b.active ? '<span class="block-type-tag '+(b.type==="Surgery"?"surg":"clin")+'">'+b.type+'</span>' : '')
+        + (b.active ? (b.followsPairing ? '<span class="block-type-tag" style="background:var(--ink-soft);">rotates</span>' : '<span class="block-type-tag '+(b.type==="Surgery"?"surg":"clin")+'">'+b.type+'</span>') : '')
         + '</div>' + inner + '</div>';
     }).join("");
     return '<div class="day-section">'
@@ -690,6 +818,23 @@ function ensureWeek(mondayStr){
   }
   return state.weeks[mondayStr];
 }
+function renderPairOverrides(mondayStr){
+  if(!state.pairs.length) return "";
+  var rows = state.pairs.map(function(pair){
+    var pa = providerById(pair.providerAId), pb = providerById(pair.providerBId);
+    if(!pa || !pb) return "";
+    var aStatus = effectiveWeekStatus(pair.providerAId, mondayStr) || "Clinic";
+    return '<div class="field" style="max-width:360px; margin-bottom:8px;"><label>'+esc(pa.name)+' / '+esc(pb.name)+' \u2014 this week</label>'
+      + '<select data-pair-override="'+pair.id+'">'
+      + '<option value="A" '+(aStatus==="Surgery"?"selected":"")+'>'+esc(pa.name)+' = Surgery \u00b7 '+esc(pb.name)+' = Clinic</option>'
+      + '<option value="B" '+(aStatus==="Clinic"?"selected":"")+'>'+esc(pb.name)+' = Surgery \u00b7 '+esc(pa.name)+' = Clinic</option>'
+      + '</select></div>';
+  }).join("");
+  if(!rows) return "";
+  return '<div class="panel"><h3 style="margin-top:0; font-size:14px;">Surgery week rotation</h3>'
+    + '<p class="helptext" style="margin-top:0;">Computed automatically from the alternating pattern \u2014 pick the other option to override just this one week.</p>'
+    + rows + '</div>';
+}
 function renderSchedule(){
   if(!state.providers.length){
     return '<h2 class="section-title">Weekly Schedule</h2><div class="empty-state">Add at least one provider first, on the Providers tab.</div>';
@@ -722,6 +867,7 @@ function renderSchedule(){
       return '<div class="slot" style="--slot-color:'+p.color+'">'
         + '<div class="slot-head"><strong>'+esc(p.name)+'</strong><span class="loc">'+BLOCK_LABEL[slot.block]+' · '+slot.location+'</span></div>'
         + '<span class="block-type-tag '+(slot.type==="Surgery"?"surg":"clin")+'" style="margin:2px 0 4px; display:inline-block;">'+slot.type+'</span>'
+        + (slot.locked ? '<span class="block-type-tag" style="background:var(--ink-soft); margin-left:4px;">manually set</span>' : '')
         + (slot.skillMin > 0 ? '<div class="loc">at least '+slot.skillMin+' surgery-trained</div>' : '')
         + '<div class="badge-row">'+badgeRow+'</div>'
         + (warn ? '<span class="warn-tag '+(warn.level==="bad"?"bad":"")+'">'+warn.text+'</span>' : '')
@@ -731,12 +877,106 @@ function renderSchedule(){
     return '<td><div class="day-col-head">'+day+'<small>'+dObj.toLocaleDateString("en-US",{month:"short",day:"numeric"})+'</small></div>'+slotsHtml+'</td>';
   }).join("");
   return '<h2 class="section-title">Weekly Schedule</h2>'
-    + '<p class="section-sub">Suggestions are generated automatically. Add or remove a medical assistant on any slot to override.</p>'
+    + '<p class="section-sub">Suggestions are generated automatically. Add or remove a medical assistant on any slot to override \u2014 once you touch a slot, "Regenerate" will never overwrite it again.</p>'
     + '<div class="week-nav">'
     + '<button class="icon-btn" id="prevWeek">‹</button><span class="rng">'+weekLabel(currentWeekStart)+'</span><button class="icon-btn" id="nextWeek">›</button>'
     + '<button class="inline-btn" id="thisWeek">This week</button>'
-    + '<button class="primary-btn" id="regenBtn" style="margin-left:auto;">Regenerate suggestions</button></div>'
+    + '<button class="primary-btn" id="regenBtn" style="margin-left:auto;">Fill empty slots</button>'
+    + '<button class="inline-btn danger" id="resetWeekBtn">Reset week from scratch</button></div>'
+    + renderPairOverrides(currentWeekStart)
     + legend + '<table class="week-table"><tbody><tr>'+cols+'</tr></tbody></table>';
+}
+
+/* ---- Monthly tab ---- */
+function saveMonthSnapshot(year, monthIdx){
+  var mk = monthKey(year, monthIdx);
+  var daysInMonth = new Date(year, monthIdx+1, 0).getDate();
+  var snapshotDays = {};
+  for(var d=1; d<=daysInMonth; d++){
+    var dateObj = new Date(year, monthIdx, d);
+    var dow = dateObj.getDay();
+    if(dow<1 || dow>5) continue;
+    var dateStr = fmtDate(dateObj);
+    var mondayStr = mondayOf(dateObj);
+    var dayKey = DAYS[dow-1];
+    var week = ensureWeek(mondayStr);
+    snapshotDays[dateStr] = JSON.parse(JSON.stringify(week.days[dayKey] || []));
+  }
+  state.monthSnapshots[mk] = state.monthSnapshots[mk] || [];
+  state.monthSnapshots[mk].push({ savedAt: new Date().toISOString(), days: snapshotDays });
+}
+function renderDaySlots(dayAssignments){
+  if(!dayAssignments || !dayAssignments.length) return '<p class="helptext">No providers scheduled.</p>';
+  var sorted = dayAssignments.slice().sort(function(a,b){
+    if(a.block !== b.block) return a.block==="AM" ? -1 : 1;
+    var pa = providerById(a.providerId), pb = providerById(b.providerId);
+    return (pa&&pb) ? pa.name.localeCompare(pb.name) : 0;
+  });
+  return sorted.map(function(slot){
+    var p = providerById(slot.providerId);
+    if(!p) return "";
+    var names = slot.assistantIds.map(function(id){ var a=assistantById(id); return a?esc(a.name):"(removed)"; }).join(", ") || "— unfilled —";
+    return '<div class="slot" style="--slot-color:'+p.color+'; margin-bottom:6px;">'
+      + '<div class="slot-head"><strong>'+esc(p.name)+'</strong><span class="loc">'+BLOCK_LABEL[slot.block]+' · '+slot.location+' · '+slot.type+'</span></div>'
+      + '<div class="helptext">'+names+'</div></div>';
+  }).join("");
+}
+function renderMonthly(){
+  if(!state.providers.length){
+    return '<h2 class="section-title">Monthly</h2><div class="empty-state">Add at least one provider first, on the Providers tab.</div>';
+  }
+  var year = currentMonthlyYear, monthIdx = currentMonthlyIdx;
+  var mk = monthKey(year, monthIdx);
+  var daysInMonth = new Date(year, monthIdx+1, 0).getDate();
+
+  if(viewingSnapshot && viewingSnapshot.monthKey === mk){
+    var snapCheck = (state.monthSnapshots[mk] || [])[viewingSnapshot.index];
+    if(!snapCheck){ viewingSnapshot = null; }
+  }
+  var showingSnap = viewingSnapshot && viewingSnapshot.monthKey === mk ? (state.monthSnapshots[mk] || [])[viewingSnapshot.index] : null;
+
+  var rows = "";
+  for(var d=1; d<=daysInMonth; d++){
+    var dateObj = new Date(year, monthIdx, d);
+    var dow = dateObj.getDay();
+    if(dow<1 || dow>5) continue;
+    var dateStr = fmtDate(dateObj);
+    var dayKey = DAYS[dow-1];
+    var dayAssignments;
+    if(showingSnap){
+      dayAssignments = showingSnap.days[dateStr] || [];
+    } else {
+      var mondayStr = mondayOf(dateObj);
+      var week = ensureWeek(mondayStr);
+      dayAssignments = week.days[dayKey] || [];
+    }
+    rows += '<div class="day-section"><div class="day-section-head">'+dateObj.toLocaleDateString("en-US",{weekday:"long", month:"short", day:"numeric"})+'</div>'
+      + renderDaySlots(dayAssignments) + '</div>';
+  }
+
+  var snaps = state.monthSnapshots[mk] || [];
+  var snapPanel = '<div class="panel"><h3 style="margin-top:0; font-size:14px;">Saved snapshots for '+MONTH_NAMES[monthIdx]+' '+year+'</h3>'
+    + (snaps.length ? snaps.map(function(s,i){
+        var when = new Date(s.savedAt).toLocaleString("en-US",{month:"short",day:"numeric",year:"numeric",hour:"numeric",minute:"2-digit"});
+        var isOpen = showingSnap && viewingSnapshot.index===i;
+        return '<div class="field-grid" style="align-items:center; margin-bottom:4px;">'
+          + '<div class="helptext" style="margin:0;">Saved '+when+'</div>'
+          + '<button class="inline-btn" data-view-snapshot="'+mk+'|'+i+'">'+(isOpen?"Viewing":"View")+'</button>'
+          + '<button class="inline-btn danger" data-delete-snapshot="'+mk+'|'+i+'">Delete</button></div>';
+      }).join("")
+      : '<p class="helptext" style="margin:0;">No snapshots saved for this month yet.</p>')
+    + '</div>';
+
+  return '<h2 class="section-title">Monthly</h2>'
+    + '<p class="section-sub">A full month at a glance, from the same live assignments as Weekly Schedule. Save a snapshot to keep a permanent record, independent of later edits or regeneration.</p>'
+    + '<div class="week-nav"><button class="icon-btn" id="prevMonth">‹</button><span class="rng">'+MONTH_NAMES[monthIdx]+' '+year+'</span><button class="icon-btn" id="nextMonth">›</button>'
+    + (showingSnap
+        ? '<button class="inline-btn" id="closeSnapshotBtn" style="margin-left:auto;">Back to live view</button>'
+        : '<button class="primary-btn" id="saveSnapshotBtn" style="margin-left:auto;">Save this month as a snapshot</button>')
+    + '</div>'
+    + (showingSnap ? '<div class="warn-tag" style="display:inline-block; margin-bottom:10px;">Viewing a saved snapshot — read-only, not the live schedule</div>' : '')
+    + snapPanel
+    + rows;
 }
 
 /* ---- Year calendar tab ---- */
@@ -776,7 +1016,7 @@ function renderMonth(year, monthIdx){
           dots += '<span class="dot" style="background:var(--coral)" title="'+esc(p.name)+' — off">'+p.name.charAt(0)+'</span>';
         } else {
           BLOCKS.forEach(function(bk){
-            var b = pd.blocks[bk];
+            var b = effectiveBlock(p, dayKey, bk, mondayStr);
             if(!b.active) return;
             dots += '<span class="dot" style="background:'+p.color+'" title="'+esc(p.name)+' — '+BLOCK_LABEL[bk]+' '+b.location+(b.type==="Surgery"?" (surgery)":"")+'">'+b.location.charAt(0)+'</span>';
           });
@@ -818,6 +1058,39 @@ function wireEvents(){
     persistAndRerender();
   };
 
+  /* Alternating pairs */
+  main.querySelectorAll("[data-pair-anchor]").forEach(function(el){ el.onchange=function(){
+    var pair = state.pairs.find(function(p){ return p.id===el.getAttribute("data-pair-anchor"); });
+    if(!pair) return;
+    if(!confirm("Changing the anchor date recalculates every week's surgery/clinic rotation from scratch \u2014 any already-generated weeks will be rebuilt (manual edits on those weeks will be lost). Continue?")){ render(); return; }
+    pair.anchorMonday = el.value;
+    state.weeks = {};
+    persistAndRerender();
+  };});
+  main.querySelectorAll("[data-pair-anchorwho]").forEach(function(el){ el.onchange=function(){
+    var pair = state.pairs.find(function(p){ return p.id===el.getAttribute("data-pair-anchorwho"); });
+    if(!pair) return;
+    if(!confirm("Changing this recalculates every week's surgery/clinic rotation from scratch \u2014 any already-generated weeks will be rebuilt (manual edits on those weeks will be lost). Continue?")){ render(); return; }
+    pair.aSurgeryOnAnchor = (el.value==="A");
+    state.weeks = {};
+    persistAndRerender();
+  };});
+  main.querySelectorAll("[data-remove-pair]").forEach(function(el){ el.onclick=function(){
+    var id = el.getAttribute("data-remove-pair");
+    if(!confirm("Remove this pair? Blocks that followed its rotation will need to be reconfigured.")) return;
+    state.pairs = state.pairs.filter(function(p){ return p.id!==id; });
+    state.weeks = {};
+    persistAndRerender();
+  };});
+  var addPairBtn = document.getElementById("addPairBtn");
+  if(addPairBtn) addPairBtn.onclick = function(){
+    var aId = document.getElementById("newPairA").value;
+    var bId = document.getElementById("newPairB").value;
+    if(!aId || !bId || aId===bId){ alert("Pick two different providers."); return; }
+    state.pairs.push({ id: uid("pr"), providerAId:aId, providerBId:bId, anchorMonday: mondayOf(new Date()), aSurgeryOnAnchor: true });
+    persistAndRerender();
+  };
+
   /* My Schedule — block editing */
   main.querySelectorAll("[data-b-active]").forEach(function(el){ el.onchange=function(){
     var p=el.getAttribute("data-b-active").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].active = el.checked; persistAndRerender();
@@ -839,6 +1112,27 @@ function wireEvents(){
   };});
   main.querySelectorAll("[data-b-skillmin]").forEach(function(el){ el.onchange=function(){
     var p=el.getAttribute("data-b-skillmin").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].skillMin = parseInt(el.value)||0; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-followpair]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-followpair").split("|"); var b = providerById(p[0]).days[p[1]].blocks[p[2]];
+    b.followsPairing = el.checked;
+    if(el.checked && !b.surgeryProfile) b.surgeryProfile = blankProfile();
+    persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-sp-loc]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-sp-loc").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].surgeryProfile.location = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-sp-start]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-sp-start").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].surgeryProfile.start = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-sp-end]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-sp-end").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].surgeryProfile.end = el.value; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-sp-need]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-sp-need").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].surgeryProfile.need = parseInt(el.value)||0; persistAndRerender();
+  };});
+  main.querySelectorAll("[data-b-sp-skillmin]").forEach(function(el){ el.onchange=function(){
+    var p=el.getAttribute("data-b-sp-skillmin").split("|"); providerById(p[0]).days[p[1]].blocks[p[2]].surgeryProfile.skillMin = parseInt(el.value)||0; persistAndRerender();
   };});
   var needsPicker = document.getElementById("needsProviderPicker");
   if(needsPicker) needsPicker.onchange = function(){ currentNeedsProviderId = needsPicker.value; render(); };
@@ -939,18 +1233,68 @@ function wireEvents(){
   var prevWeek = document.getElementById("prevWeek"); if(prevWeek) prevWeek.onclick=function(){ currentWeekStart = addDays(currentWeekStart,-7); render(); };
   var nextWeek = document.getElementById("nextWeek"); if(nextWeek) nextWeek.onclick=function(){ currentWeekStart = addDays(currentWeekStart,7); render(); };
   var thisWeek = document.getElementById("thisWeek"); if(thisWeek) thisWeek.onclick=function(){ currentWeekStart = mondayOf(new Date()); render(); };
-  var regenBtn = document.getElementById("regenBtn"); if(regenBtn) regenBtn.onclick=function(){ state.weeks[currentWeekStart] = generateWeek(currentWeekStart); persistAndRerender(); };
+  var regenBtn = document.getElementById("regenBtn"); if(regenBtn) regenBtn.onclick=function(){
+    state.weeks[currentWeekStart] = generateWeek(currentWeekStart, state.weeks[currentWeekStart]);
+    persistAndRerender();
+  };
+  var resetWeekBtn = document.getElementById("resetWeekBtn"); if(resetWeekBtn) resetWeekBtn.onclick=function(){
+    if(!confirm("This throws away every manual change made to this week, including anything marked \"manually set\", and rebuilds it from scratch. Continue?")) return;
+    var keepOverrides = (state.weeks[currentWeekStart] && state.weeks[currentWeekStart].typeOverrides) || {};
+    state.weeks[currentWeekStart] = generateWeek(currentWeekStart);
+    state.weeks[currentWeekStart].typeOverrides = keepOverrides;
+    persistAndRerender();
+  };
+  main.querySelectorAll("[data-pair-override]").forEach(function(el){ el.onchange=function(){
+    var pairId = el.getAttribute("data-pair-override");
+    var pair = state.pairs.find(function(pr){ return pr.id===pairId; });
+    if(!pair) return;
+    var week = ensureWeek(currentWeekStart);
+    week.typeOverrides = week.typeOverrides || {};
+    if(el.value==="A"){
+      week.typeOverrides[pair.providerAId] = "Surgery";
+      week.typeOverrides[pair.providerBId] = "Clinic";
+    } else {
+      week.typeOverrides[pair.providerAId] = "Clinic";
+      week.typeOverrides[pair.providerBId] = "Surgery";
+    }
+    state.weeks[currentWeekStart] = generateWeek(currentWeekStart, week);
+    persistAndRerender();
+  };});
   main.querySelectorAll("[data-unassign]").forEach(function(el){ el.onclick=function(){
     var p = el.getAttribute("data-unassign").split("|");
     var slot = state.weeks[currentWeekStart].days[p[0]].find(function(s){ return s.providerId===p[1] && s.block===p[2]; });
-    if(slot) slot.assistantIds = slot.assistantIds.filter(function(id){ return id!==p[3]; });
+    if(slot){ slot.assistantIds = slot.assistantIds.filter(function(id){ return id!==p[3]; }); slot.locked = true; }
     persistAndRerender();
   };});
   main.querySelectorAll("[data-assign]").forEach(function(el){ el.onchange=function(){
     if(!el.value) return;
     var p = el.getAttribute("data-assign").split("|");
     var slot = state.weeks[currentWeekStart].days[p[0]].find(function(s){ return s.providerId===p[1] && s.block===p[2]; });
-    if(slot && slot.assistantIds.indexOf(el.value)===-1) slot.assistantIds.push(el.value);
+    if(slot && slot.assistantIds.indexOf(el.value)===-1){ slot.assistantIds.push(el.value); slot.locked = true; }
+    persistAndRerender();
+  };});
+
+  /* Monthly */
+  var prevMonth = document.getElementById("prevMonth"); if(prevMonth) prevMonth.onclick=function(){
+    currentMonthlyIdx--; if(currentMonthlyIdx<0){ currentMonthlyIdx=11; currentMonthlyYear--; } viewingSnapshot=null; render();
+  };
+  var nextMonth = document.getElementById("nextMonth"); if(nextMonth) nextMonth.onclick=function(){
+    currentMonthlyIdx++; if(currentMonthlyIdx>11){ currentMonthlyIdx=0; currentMonthlyYear++; } viewingSnapshot=null; render();
+  };
+  var saveSnapshotBtn = document.getElementById("saveSnapshotBtn"); if(saveSnapshotBtn) saveSnapshotBtn.onclick=function(){
+    saveMonthSnapshot(currentMonthlyYear, currentMonthlyIdx); persistAndRerender();
+  };
+  var closeSnapshotBtn = document.getElementById("closeSnapshotBtn"); if(closeSnapshotBtn) closeSnapshotBtn.onclick=function(){ viewingSnapshot=null; render(); };
+  main.querySelectorAll("[data-view-snapshot]").forEach(function(el){ el.onclick=function(){
+    var p = el.getAttribute("data-view-snapshot").split("|");
+    viewingSnapshot = { monthKey:p[0], index:parseInt(p[1]) };
+    render();
+  };});
+  main.querySelectorAll("[data-delete-snapshot]").forEach(function(el){ el.onclick=function(){
+    var p = el.getAttribute("data-delete-snapshot").split("|");
+    if(!confirm("Delete this saved snapshot? This can't be undone.")) return;
+    state.monthSnapshots[p[0]].splice(parseInt(p[1]), 1);
+    if(viewingSnapshot && viewingSnapshot.monthKey===p[0] && viewingSnapshot.index===parseInt(p[1])) viewingSnapshot=null;
     persistAndRerender();
   };});
 
